@@ -40,7 +40,7 @@
             filter: brightness(0.85) contrast(1.0) !important;
         }
         #map.sleek-light .leaflet-tile {
-            filter: saturate(1.1) contrast(1.05) brightness(0.98) !important;
+            filter: none !important;
         }
     </style>
 </head>
@@ -210,7 +210,7 @@
         const DEFAULT_LAT = 50.7940;
         const DEFAULT_LON = -1.1244;
         let home = { lat: DEFAULT_LAT, lon: DEFAULT_LON };
-        let radius = 300; // Updated to default coverage scale
+        let radius = 300; // Defaulting coverage scale to 300km
         let trackingMode = 'live'; // 'live' or 'sim'
         let aircraft = [];
         let markers = {};
@@ -249,8 +249,11 @@
             // Default setup zoomed to Level 8 to easily display the full 300KM canopy
             map = L.map('map', { zoomControl: false, attributionControl: false }).setView([home.lat, home.lon], 8);
             
-            // Set up initial tile layer path
-            tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            // Set up initial tile layer path without the broken {r} parameter
+            tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
             updateRangeRing();
             
             document.getElementById('lat-in').value = home.lat;
@@ -264,16 +267,19 @@
 
             if (tileLayer) map.removeLayer(tileLayer);
 
-            // Using high-contrast CartoDB Voyager tiles for clear landmarks and geographical structures
-            let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+            // Re-routing to clean OpenStreetMap standard tiles for 100% reliable light rendering
+            let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
             if (style === 'sleek-light') {
-                tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-                mapEl.style.background = '#f8fafc';
+                tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+                mapEl.style.background = '#f1f5f9';
             } else {
                 mapEl.style.background = '#020617';
             }
 
-            tileLayer = L.tileLayer(tileUrl).addTo(map);
+            tileLayer = L.tileLayer(tileUrl, {
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
         }
 
         function updateRangeRing() {
