@@ -81,9 +81,9 @@
                 <div>
                     <div class="flex justify-between text-[10px] font-bold uppercase text-slate-500 mb-1">
                         <span>Scanning Range</span>
-                        <span id="range-val" class="text-indigo-400 font-mono">60 KM</span>
+                        <span id="range-val" class="text-indigo-400 font-mono">300 KM</span>
                     </div>
-                    <input type="range" id="range-slider" min="10" max="300" value="60" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="handleRangeChange(this.value)">
+                    <input type="range" id="range-slider" min="10" max="300" value="300" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="handleRangeChange(this.value)">
                 </div>
                 <button onclick="getGPSLocation()" class="w-full bg-slate-800 hover:bg-slate-700 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all border border-slate-700/50 hover:border-indigo-500/30">
                     <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Update from GPS
@@ -188,14 +188,30 @@
         const DEFAULT_LAT = 50.7940;
         const DEFAULT_LON = -1.1244;
         let home = { lat: DEFAULT_LAT, lon: DEFAULT_LON };
-        let radius = 60;
+        let radius = 300;
         let trackingMode = 'live'; // 'live' or 'sim'
         let aircraft = [];
         let markers = {};
         let map, rangeCircle, audioCtx;
         let connectionAttempts = 0;
 
-        const AIRLINES = [{c:"BAW",n:"British Airways"},{c:"EZY",n:"EasyJet"},{c:"RYR",n:"Ryanair"},{c:"VIR",n:"Virgin Atlantic"},{c:"UAL",n:"United"},{c:"AAL",n:"American"},{c:"DLH",n:"Lufthansa"},{c:"AFR",n:"Air France"}];
+        const AIRLINES = [
+            {c:"BAW",n:"British Airways"},
+            {c:"EZY",n:"EasyJet"},
+            {c:"EJU",n:"EasyJet Europe"},
+            {c:"EZS",n:"EasyJet Switzerland"},
+            {c:"RYR",n:"Ryanair"},
+            {c:"RRY",n:"Ryanair UK"},
+            {c:"TOM",n:"TUI Airways"},
+            {c:"TUI",n:"TUI fly"},
+            {c:"EXS",n:"Jet2.com"},
+            {c:"VLG",n:"Vueling"},
+            {c:"VIR",n:"Virgin Atlantic"},
+            {c:"UAL",n:"United Airlines"},
+            {c:"AAL",n:"American Airlines"},
+            {c:"DLH",n:"Lufthansa"},
+            {c:"AFR",n:"Air France"}
+        ];
         const TYPES = [{c:"A320",n:"Airbus A320"},{c:"B738",n:"Boeing 737-800"},{c:"B77W",n:"Boeing 777"},{c:"F35",n:"Lockheed F-35"},{c:"A35K",n:"Airbus A350"}];
         const APORTS = ["LHR","LGW","JFK","LAX","AMS","CDG","DXB","SIN","FRA","MAD"];
 
@@ -207,7 +223,7 @@
         };
 
         function initMap() {
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([home.lat, home.lon], 10);
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([home.lat, home.lon], 8);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
             updateRangeRing();
             
@@ -283,13 +299,11 @@
             const rNM = Math.ceil(radius * 0.54);
             
             // JITTER CACHE-BUSTER:
-            // Shift the coordinates by roughly ~10 centimeters. This completely changes 
-            // the proxy URL key to bypass caching, without changing the flight data results!
             const jitterLat = (home.lat + (Math.random() - 0.5) * 0.000001).toFixed(6);
             const jitterLon = (home.lon + (Math.random() - 0.5) * 0.000001).toFixed(6);
 
             const targetApiUrl = `https://api.adsb.lol/v2/point/${jitterLat}/${jitterLon}/${rNM}`;
-            const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}`;
+            const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}&cb=${Date.now()}`;
             
             try {
                 const res = await fetch(corsProxyUrl, { mode: 'cors', cache: 'no-cache' });
@@ -318,18 +332,21 @@
         }
 
         function processData(raw) {
-            aircraft = raw.map(a => ({
-                hex: a.hex, 
-                call: (a.flight || a.hex).trim(),
-                alt: a.alt_baro === 'ground' ? 0 : (a.alt_baro || a.alt_geom || 0), 
-                spd: Math.round(a.gs || 0),
-                trk: a.track || 0, 
-                lat: a.lat, 
-                lon: a.lon,
-                op: AIRLINES.find(l => (a.flight||"").startsWith(l.c))?.n || "Private/Unlisted",
-                type: TYPES.find(t => t.c === a.t)?.n || "General Aviation",
-                dist: getDist(home.lat, home.lon, a.lat, a.lon)
-            }));
+            aircraft = raw.map(a => {
+                const rawCall = (a.flight || a.hex).trim();
+                return {
+                    hex: a.hex, 
+                    call: rawCall,
+                    alt: a.alt_baro === 'ground' ? 0 : (a.alt_baro || a.alt_geom || 0), 
+                    spd: Math.round(a.gs || 0),
+                    trk: a.track || 0, 
+                    lat: a.lat, 
+                    lon: a.lon,
+                    op: AIRLINES.find(l => rawCall.startsWith(l.c))?.n || "Private/Unlisted",
+                    type: TYPES.find(t => t.c === a.t)?.n || "General Aviation",
+                    dist: getDist(home.lat, home.lon, a.lat, a.lon)
+                };
+            });
             render();
         }
 
@@ -337,19 +354,32 @@
             const count = Math.max(5, Math.floor(radius / 4));
             const sim = [];
             for(let i=0; i<count; i++) {
-                const ang = (Date.now() / 10000 + i) % (Math.PI * 2);
-                const d = (Math.sin(i) * 0.5 + 0.5) * radius;
+                // The Golden Angle (137.5 degrees) creates an exceptionally uniform circular distribution
+                const seedAngle = (i * 137.5) * Math.PI / 180;
+                const speed = 250 + (i % 5) * 50; 
+                const track = (i * 45) % 360; 
+                
+                // Slowly drift the planes outward/inward over time based on system clock
+                const timeSecs = Date.now() / 1000;
+                const distanceMoved = (speed * 0.5144 * timeSecs) / 1000; 
+                const startDist = ((i * 17) % 100) / 100 * radius; 
+                const currentDist = (startDist + distanceMoved) % radius;
+                
+                // Distribute beautifully across the radar canopy
+                const lat = home.lat + (currentDist * Math.cos(seedAngle) / 111);
+                const lon = home.lon + (currentDist * Math.sin(seedAngle) / 111);
+
                 sim.push({
                     hex: "SIM"+i, 
                     call: AIRLINES[i%AIRLINES.length].c + (100+i),
-                    alt: 18000 + (Math.sin(i)*10000), 
-                    spd: 380 + (Math.cos(i)*50),
-                    trk: (ang * 180 / Math.PI + 90) % 360, 
-                    lat: home.lat + (d * Math.cos(ang) / 111),
-                    lon: home.lon + (d * Math.sin(ang) / 111),
+                    alt: 5000 + ((i * 3000) % 35000), 
+                    spd: speed,
+                    trk: track, 
+                    lat: lat,
+                    lon: lon,
                     op: AIRLINES[i%AIRLINES.length].n, 
                     type: TYPES[i%TYPES.length].n, 
-                    dist: d
+                    dist: currentDist
                 });
             }
             aircraft = sim;
@@ -419,10 +449,23 @@
             document.getElementById('d-dest').innerText = APORTS[(seed + 3) % APORTS.length];
             
             document.getElementById('drawer').style.transform = 'translateY(0)';
-            map.panTo([a.lat, a.lon]);
+
+            let offsetX = 0;
+            let offsetY = 0;
+            if (window.innerWidth < 768) {
+                offsetY = 120; // Push map down, shifting plane UP on screen above the bottom drawer
+            } else {
+                offsetX = 100; // Push map right, shifting plane LEFT away from the right-hand panel
+            }
+            
+            const targetPoint = map.project([a.lat, a.lon]);
+            targetPoint.x += offsetX;
+            targetPoint.y += offsetY;
+            const targetLatLng = map.unproject(targetPoint);
+            map.panTo(targetLatLng);
+
             playBeep(440 + (a.alt/100));
 
-            // Auto-close sidebar on mobile view to clear visual screen space
             if (window.innerWidth < 768) {
                 const sidebar = document.getElementById('sidebar');
                 if (!sidebar.classList.contains('-translate-x-full')) {
@@ -440,7 +483,7 @@
             radius = parseInt(v); 
             document.getElementById('range-val').innerText = v+' KM'; 
             updateRangeRing(); 
-            fetchData(); // Trigger immediate network/simulation update on slider change
+            fetchData(); 
         }
         
         function setStatus(t, c) { 
