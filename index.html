@@ -3,74 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tactical Map Interface</title>
+    <title>SkyTrack Radar</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         #map { height: 100vh; width: 100%; z-index: 0; }
         .map-overlay { z-index: 1000; }
+        /* Highlighting ring style */
+        .highlight-ring {
+            border: 2px solid #6366f1;
+            border-radius: 50%;
+            animation: rotate 2s linear infinite;
+        }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="bg-gray-950 text-white overflow-hidden">
+<body class="bg-gray-950 text-white overflow-hidden font-sans">
 
     <div id="map-container" class="relative w-full h-screen">
         <div id="map"></div>
     </div>
 
-    <!-- UI Overlay -->
-    <div class="map-overlay absolute top-4 left-4 flex gap-2">
-        <button onclick="changeMapStyle('light')" class="bg-white text-black px-4 py-2 rounded shadow font-bold hover:bg-gray-200">Sleek Light</button>
-        <button onclick="changeMapStyle('dark')" class="bg-gray-800 text-white px-4 py-2 rounded shadow font-bold hover:bg-gray-700">Tactical Dark</button>
+    <!-- UI Overlay Controls -->
+    <div class="map-overlay absolute top-4 left-4 flex flex-col gap-2">
+        <div class="bg-gray-800/90 p-4 rounded-xl shadow-lg border border-gray-700 w-64 backdrop-blur">
+            <h2 class="font-bold mb-2">Radar Settings</h2>
+            <select id="mapStyleSelect" onchange="changeMapStyle(this.value)" class="w-full bg-gray-900 p-2 rounded border border-gray-600 text-sm">
+                <option value="dark">Tactical Dark</option>
+                <option value="light">Sleek Light (High Contrast)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Detail Drawer (Simplified for brevity in this fix) -->
+    <div id="detail-drawer" class="hidden map-overlay absolute bottom-4 right-4 bg-gray-900 p-6 rounded-2xl w-80 border border-gray-700 shadow-2xl">
+        <button onclick="closeDrawer()" class="absolute top-2 right-2 text-gray-400">✕</button>
+        <h3 id="flight-id" class="text-xl font-bold mb-2">Select a Flight</h3>
+        <p id="flight-data" class="text-sm text-gray-300">Detailed telemetry will appear here.</p>
     </div>
 
     <script>
         let map = null;
         let currentTheme = 'dark';
+        let tileLayer = null;
+        let selectedHex = null;
+        let highlightMarker = null;
 
         const mapConfigs = {
-            dark: {
-                url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                attr: '&copy; CartoDB'
-            },
-            light: {
-                url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                attr: '&copy; CartoDB'
-            }
+            dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
+            light: { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' }
         };
 
-        function initMap(theme) {
-            // Destroy existing map instance completely
-            if (map) {
-                map.remove();
-                map = null;
-            }
-
-            // Re-create the div if needed or just clear it
-            const mapEl = document.getElementById('map');
-            mapEl.innerHTML = '';
-
-            // Initialize fresh
-            map = L.map('map', {
-                center: [50.798, -1.121],
-                zoom: 13,
-                zoomControl: false
-            });
-
-            L.tileLayer(mapConfigs[theme].url, {
-                attribution: mapConfigs[theme].attr
-            }).addTo(map);
-
-            currentTheme = theme;
+        function initMap() {
+            map = L.map('map', { center: [50.798, -1.121], zoom: 8, zoomControl: false });
+            tileLayer = L.tileLayer(mapConfigs[currentTheme].url).addTo(map);
+            
+            // Mock flights for testing
+            renderFlights();
         }
 
         function changeMapStyle(theme) {
-            if (theme === currentTheme) return;
-            initMap(theme);
+            currentTheme = theme;
+            if (tileLayer) map.removeLayer(tileLayer);
+            tileLayer = L.tileLayer(mapConfigs[theme].url).addTo(map);
         }
 
-        // Start
-        window.onload = () => initMap('dark');
+        function renderFlights() {
+            // Placeholder: Adding one flight for demonstration
+            const marker = L.marker([50.8, -1.1]).addTo(map);
+            marker.on('click', () => selectFlight('RYR123', marker));
+        }
+
+        function selectFlight(hex, marker) {
+            selectedHex = hex;
+            document.getElementById('flight-id').innerText = hex;
+            document.getElementById('detail-drawer').classList.remove('hidden');
+
+            // Add highlight ring
+            if (highlightMarker) map.removeLayer(highlightMarker);
+            highlightMarker = L.circleMarker(marker.getLatLng(), {
+                radius: 20,
+                color: '#6366f1',
+                fill: false,
+                className: 'highlight-ring'
+            }).addTo(map);
+        }
+
+        function closeDrawer() {
+            document.getElementById('detail-drawer').classList.add('hidden');
+            // We DO NOT set selectedHex = null so the ring persists
+        }
+
+        window.onload = initMap;
     </script>
 </body>
 </html>
