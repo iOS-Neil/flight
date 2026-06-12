@@ -283,9 +283,11 @@
             if (trackingMode === 'sim') { generateSim(); return; }
 
             const rNM = Math.ceil(radius * 0.54);
-            // Cache Buster (?cb=Timestamp) appended directly to the flight API url to completely bypass aggressive iOS caching
-            const targetApiUrl = `https://api.adsb.lol/v2/point/${home.lat}/${home.lon}/${rNM}?cb=${Date.now()}`;
-            const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}`;
+            // Keep target flight API URL pristine so the strict database server doesn't reject it
+            const targetApiUrl = `https://api.adsb.lol/v2/point/${home.lat}/${home.lon}/${rNM}`;
+            // Append the cache-buster directly to the proxy URL parameter. 
+            // This bypasses both iOS and CorsProxy edge-caching without corrupting the flight API query!
+            const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}&cb=${Date.now()}`;
             
             try {
                 const res = await fetch(corsProxyUrl, { mode: 'cors', cache: 'no-cache' });
