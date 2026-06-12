@@ -27,7 +27,7 @@
         .custom-plane-marker { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
         .glass-panel {
-            background: rgba(15, 23, 42, 0.8);
+            background: rgba(15, 23, 42, 0.85);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(51, 65, 85, 0.5);
         }
@@ -35,9 +35,14 @@
 </head>
 <body class="bg-slate-950 text-slate-100 h-full overflow-hidden flex flex-col">
 
-    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-[1000] shadow-2xl">
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-[4000] shadow-2xl">
         <div class="flex items-center gap-3">
-            <div class="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20">
+            <!-- Mobile Toggle Button inside Header -->
+            <button onclick="toggleSidebar()" class="md:hidden bg-slate-800 hover:bg-slate-700 text-indigo-400 p-2 rounded-lg transition-all flex items-center justify-center">
+                <i data-lucide="menu" id="toggle-icon-header" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20 hidden sm:block">
                 <i data-lucide="plane-takeoff" class="w-6 h-6"></i>
             </div>
             <div>
@@ -55,13 +60,22 @@
     </header>
 
     <div class="flex flex-1 overflow-hidden relative">
-        <aside id="sidebar" class="w-full md:w-80 bg-slate-900 border-r border-slate-800 flex flex-col z-[2000] absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition-transform duration-300">
+        <!-- Sidebar Navigation Controls -->
+        <aside id="sidebar" class="w-full md:w-80 bg-slate-900 border-r border-slate-800 flex flex-col z-[3500] absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition-transform duration-300 ease-in-out">
             <div class="p-4 space-y-4 border-b border-slate-800">
+                <!-- Mobile Close Row -->
+                <div class="flex items-center justify-between md:hidden pb-1 border-b border-slate-800/50">
+                    <span class="text-xs font-bold uppercase text-slate-400 tracking-wider">Radar Settings</span>
+                    <button onclick="toggleSidebar()" class="text-slate-500 hover:text-white p-1">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
                 <div>
                     <label class="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Scan Center (Lat/Lon)</label>
                     <div class="grid grid-cols-2 gap-2">
-                        <input type="number" id="lat-in" step="0.01" class="bg-slate-950 border border-slate-800 p-2 rounded text-xs mono text-indigo-400 focus:border-indigo-500 outline-none" onchange="updateLocationFromInputs()">
-                        <input type="number" id="lon-in" step="0.01" class="bg-slate-950 border border-slate-800 p-2 rounded text-xs mono text-indigo-400 focus:border-indigo-500 outline-none" onchange="updateLocationFromInputs()">
+                        <input type="number" id="lat-in" step="0.0001" class="bg-slate-950 border border-slate-800 p-2 rounded text-xs mono text-indigo-400 focus:border-indigo-500 outline-none w-full" onchange="updateLocationFromInputs()">
+                        <input type="number" id="lon-in" step="0.0001" class="bg-slate-950 border border-slate-800 p-2 rounded text-xs mono text-indigo-400 focus:border-indigo-500 outline-none w-full" onchange="updateLocationFromInputs()">
                     </div>
                 </div>
                 <div>
@@ -71,11 +85,12 @@
                     </div>
                     <input type="range" id="range-slider" min="10" max="300" value="60" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="handleRangeChange(this.value)">
                 </div>
-                <button onclick="getGPSLocation()" class="w-full bg-slate-800 hover:bg-slate-700 py-2 rounded text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                <button onclick="getGPSLocation()" class="w-full bg-slate-800 hover:bg-slate-700 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all border border-slate-700/50 hover:border-indigo-500/30">
                     <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Update from GPS
                 </button>
             </div>
 
+            <!-- List of identified flights -->
             <div class="flex-1 overflow-y-auto" id="flight-list">
                 <div class="p-8 text-center text-slate-600 text-xs italic">Initiating scan vectors...</div>
             </div>
@@ -109,6 +124,7 @@
                 </div>
             </div>
 
+            <!-- Inspect Plane Detail Drawer -->
             <div id="drawer" class="absolute bottom-6 right-6 left-6 md:left-auto md:w-96 glass-panel rounded-2xl shadow-2xl p-5 z-[3000] transform translate-y-[120%] transition-all duration-500">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex gap-3">
@@ -146,6 +162,7 @@
         </main>
     </div>
 
+    <!-- Diagnostic Modal Overlay -->
     <div id="diag-modal" class="fixed inset-0 z-[5000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-400"><i data-lucide="activity"></i> Connection Diagnostics</h3>
@@ -206,6 +223,7 @@
         }
 
         function getGPSLocation() {
+            setStatus('LOCATING...', 'indigo');
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(pos => {
                     home.lat = pos.coords.latitude;
@@ -213,16 +231,43 @@
                     document.getElementById('lat-in').value = home.lat.toFixed(4);
                     document.getElementById('lon-in').value = home.lon.toFixed(4);
                     updateLocationFromInputs();
-                }, () => setStatus('READY', 'emerald'));
+                    setStatus('GPS ACTIVE', 'emerald');
+                }, (err) => {
+                    console.warn("GPS lookup failed", err);
+                    setStatus('GPS FAILED', 'amber');
+                    updateLocationFromInputs();
+                }, { enableHighAccuracy: true, timeout: 5000 });
+            } else {
+                setStatus('UNSUPPORTED', 'amber');
+                updateLocationFromInputs();
             }
         }
 
         function updateLocationFromInputs() {
-            home.lat = parseFloat(document.getElementById('lat-in').value);
-            home.lon = parseFloat(document.getElementById('lon-in').value);
-            map.panTo([home.lat, home.lon]);
-            updateRangeRing();
-            fetchData();
+            const rawLat = parseFloat(document.getElementById('lat-in').value);
+            const rawLon = parseFloat(document.getElementById('lon-in').value);
+            if (!isNaN(rawLat) && !isNaN(rawLon)) {
+                home.lat = rawLat;
+                home.lon = rawLon;
+                map.panTo([home.lat, home.lon]);
+                updateRangeRing();
+                fetchData();
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('toggle-icon-header');
+            const isHidden = sidebar.classList.contains('-translate-x-full');
+            
+            if (isHidden) {
+                sidebar.classList.remove('-translate-x-full');
+                icon.setAttribute('data-lucide', 'x');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                icon.setAttribute('data-lucide', 'menu');
+            }
+            lucide.createIcons();
         }
 
         function setTrackingMode(m) {
@@ -237,8 +282,6 @@
 
             const rNM = Math.ceil(radius * 0.54);
             const targetApiUrl = `https://api.adsb.lol/v2/point/${home.lat}/${home.lon}/${rNM}`;
-            
-            // Wrap original API in the secure, free-for-github.io corsproxy.io wrapper
             const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}`;
             
             try {
@@ -248,7 +291,7 @@
                 
                 if (!data.ac || data.ac.length === 0) {
                     setStatus('NO TRAFFIC', 'amber');
-                    generateSim(); // Fallback to predictive if airspace is empty
+                    generateSim(); 
                 } else {
                     processData(data.ac);
                     setStatus('LIVE FEED', 'emerald');
@@ -271,7 +314,7 @@
             aircraft = raw.map(a => ({
                 hex: a.hex, 
                 call: (a.flight || a.hex).trim(),
-                alt: a.alt_baro || a.alt_geom || 0, 
+                alt: a.alt_baro === 'ground' ? 0 : (a.alt_baro || a.alt_geom || 0), 
                 spd: Math.round(a.gs || 0),
                 trk: a.track || 0, 
                 lat: a.lat, 
@@ -315,8 +358,8 @@
             aircraft.forEach(a => {
                 const color = a.alt > 30000 ? '#3b82f6' : a.alt > 15000 ? '#10b981' : '#f59e0b';
                 const icon = L.divIcon({
-                    html: `<div class="custom-plane-marker" style="transform: rotate(${a.trk}deg); color: ${color}; filter: drop-shadow(0 0 3px rgba(0,0,0,0.8));"><i data-lucide="plane"></i></div>`,
-                    className: '', iconSize: [20,20]
+                    html: `<div class="custom-plane-marker flex items-center justify-center" style="transform: rotate(${a.trk}deg); color: ${color}; filter: drop-shadow(0 0 4px rgba(0,0,0,0.9)); width: 28px; height: 28px;"><i data-lucide="plane" class="w-6 h-6"></i></div>`,
+                    className: '', iconSize: [28,28], iconAnchor: [14, 14]
                 });
 
                 if (markers[a.hex]) {
@@ -371,20 +414,47 @@
             document.getElementById('drawer').style.transform = 'translateY(0)';
             map.panTo([a.lat, a.lon]);
             playBeep(440 + (a.alt/100));
+
+            // Auto-close sidebar on mobile view to clear visual screen space
+            if (window.innerWidth < 768) {
+                const sidebar = document.getElementById('sidebar');
+                if (!sidebar.classList.contains('-translate-x-full')) {
+                    toggleSidebar();
+                }
+            }
         }
 
         function selectByHex(h) { const a = aircraft.find(x=>x.hex===h); if(a) select(a); }
         function closeDrawer() { document.getElementById('drawer').style.transform = 'translateY(120%)'; }
         function showDiagnostics() { document.getElementById('diag-modal').classList.remove('hidden'); }
         function hideDiagnostics() { document.getElementById('diag-modal').classList.add('hidden'); }
-        function handleRangeChange(v) { radius = parseInt(v); document.getElementById('range-val').innerText = v+' KM'; updateRangeRing(); render(); }
+        
+        function handleRangeChange(v) { 
+            radius = parseInt(v); 
+            document.getElementById('range-val').innerText = v+' KM'; 
+            updateRangeRing(); 
+            fetchData(); // Trigger immediate network/simulation update on slider change
+        }
         
         function setStatus(t, c) { 
             const dot = document.getElementById('status-dot');
             const txt = document.getElementById('api-status-text');
-            dot.className = `w-2 h-2 rounded-full bg-${c}-500 shadow-[0_0_8px_rgba(var(--tw-color-${c}-500),0.6)]`;
+            
+            const dotStyles = {
+                emerald: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]',
+                amber: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]',
+                indigo: 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]'
+            };
+            
+            const textStyles = {
+                emerald: 'font-bold text-emerald-400',
+                amber: 'font-bold text-amber-400',
+                indigo: 'font-bold text-indigo-400'
+            };
+
+            dot.className = `w-2 h-2 rounded-full transition-all duration-300 ${dotStyles[c] || dotStyles.emerald}`;
             txt.innerText = t;
-            txt.className = `font-bold text-${c}-400`;
+            txt.className = `font-bold transition-all duration-300 ${textStyles[c] || textStyles.emerald}`;
         }
 
         function playBeep(f) {
