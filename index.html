@@ -2,7 +2,7 @@
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SkyTrack Radar - Live Flight Surveillance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -27,18 +27,19 @@
         .custom-plane-marker { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
         .glass-panel {
-            background: rgba(15, 23, 42, 0.85);
+            background: rgba(15, 23, 42, 0.9);
             backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(51, 65, 85, 0.5);
         }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-full overflow-hidden flex flex-col">
 
-    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-[4000] shadow-2xl">
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-[4000] shadow-2xl shrink-0">
         <div class="flex items-center gap-3">
             <!-- Mobile Toggle Button inside Header -->
-            <button onclick="toggleSidebar()" class="md:hidden bg-slate-800 hover:bg-slate-700 text-indigo-400 p-2 rounded-lg transition-all flex items-center justify-center">
+            <button onclick="toggleSidebar()" class="md:hidden bg-slate-800 hover:bg-slate-700 text-indigo-400 p-2 rounded-lg transition-all flex items-center justify-center active:scale-95" style="min-width: 40px; min-height: 40px;">
                 <i data-lucide="menu" id="toggle-icon-header" class="w-5 h-5"></i>
             </button>
             
@@ -46,13 +47,13 @@
                 <i data-lucide="plane-takeoff" class="w-6 h-6"></i>
             </div>
             <div>
-                <h1 class="text-lg font-black tracking-tighter uppercase">SkyTrack <span class="text-indigo-400">Radar</span></h1>
+                <h1 class="text-base sm:text-lg font-black tracking-tighter uppercase">SkyTrack <span class="text-indigo-400">Radar</span></h1>
                 <p class="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Tactical Air Surveillance</p>
             </div>
         </div>
 
         <div class="flex items-center gap-3">
-            <div id="status-badge" onclick="showDiagnostics()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-[10px] cursor-help flex items-center gap-2 group transition-all hover:border-indigo-500">
+            <div id="status-badge" onclick="showDiagnostics()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[10px] cursor-help flex items-center gap-2 group transition-all hover:border-indigo-500 active:scale-95">
                 <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
                 <span id="api-status-text" class="font-bold text-emerald-400">SYSTEM READY</span>
             </div>
@@ -66,7 +67,7 @@
                 <!-- Mobile Close Row -->
                 <div class="flex items-center justify-between md:hidden pb-1 border-b border-slate-800/50">
                     <span class="text-xs font-bold uppercase text-slate-400 tracking-wider">Radar Settings</span>
-                    <button onclick="toggleSidebar()" class="text-slate-500 hover:text-white p-1">
+                    <button onclick="toggleSidebar()" class="text-slate-500 hover:text-white p-2">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </div>
@@ -85,7 +86,7 @@
                     </div>
                     <input type="range" id="range-slider" min="10" max="300" value="60" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="handleRangeChange(this.value)">
                 </div>
-                <button onclick="getGPSLocation()" class="w-full bg-slate-800 hover:bg-slate-700 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all border border-slate-700/50 hover:border-indigo-500/30">
+                <button onclick="getGPSLocation()" class="w-full bg-slate-800 hover:bg-slate-700 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all border border-slate-700/50 hover:border-indigo-500/30 active:scale-[0.98]" style="min-height: 44px;">
                     <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Update from GPS
                 </button>
             </div>
@@ -134,7 +135,7 @@
                             <p id="d-operator" class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">---</p>
                         </div>
                     </div>
-                    <button onclick="closeDrawer()" class="text-slate-500 hover:text-white p-1"><i data-lucide="x"></i></button>
+                    <button onclick="closeDrawer()" class="text-slate-500 hover:text-white p-2 bg-slate-800/50 hover:bg-slate-850 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
                 </div>
                 <div class="grid grid-cols-2 gap-3 mb-4">
                     <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
@@ -148,13 +149,13 @@
                 </div>
                 <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-2">
                     <div class="flex justify-between items-center">
-                        <div class="text-center"><h4 id="d-orig" class="text-lg font-bold mono text-slate-200">---</h4><p class="text-[8px] text-slate-500">ORIGIN</p></div>
+                        <div class="text-center"><h4 id="d-orig" class="text-base sm:text-lg font-bold mono text-slate-200">---</h4><p class="text-[8px] text-slate-500">ORIGIN</p></div>
                         <div class="flex-1 flex flex-col items-center px-4">
                             <div class="w-full border-t border-dashed border-slate-700 relative">
                                 <i data-lucide="plane" class="w-3 h-3 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-500 rotate-90"></i>
                             </div>
                         </div>
-                        <div class="text-center"><h4 id="d-dest" class="text-lg font-bold mono text-slate-200">---</h4><p class="text-[8px] text-slate-500">DEST</p></div>
+                        <div class="text-center"><h4 id="d-dest" class="text-base sm:text-lg font-bold mono text-slate-200">---</h4><p class="text-[8px] text-slate-500">DEST</p></div>
                     </div>
                 </div>
                 <div id="d-type" class="text-center text-[9px] font-mono text-slate-600 italic">-- Aircraft Data Unavailable --</div>
@@ -200,9 +201,13 @@
         const APORTS = ["LHR","LGW","JFK","LAX","AMS","CDG","DXB","SIN","FRA","MAD"];
 
         window.onload = () => {
-            lucide.createIcons();
             initMap();
-            getGPSLocation();
+            // Secure boot chain: set inputs from hardcoded variables, map centered, start loop.
+            document.getElementById('lat-in').value = home.lat;
+            document.getElementById('lon-in').value = home.lon;
+            updateLocationFromInputs();
+            
+            lucide.createIcons();
             setInterval(fetchData, 10000);
         };
 
@@ -210,9 +215,6 @@
             map = L.map('map', { zoomControl: false, attributionControl: false }).setView([home.lat, home.lon], 10);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
             updateRangeRing();
-            
-            document.getElementById('lat-in').value = home.lat;
-            document.getElementById('lon-in').value = home.lon;
         }
 
         function updateRangeRing() {
@@ -281,7 +283,8 @@
             if (trackingMode === 'sim') { generateSim(); return; }
 
             const rNM = Math.ceil(radius * 0.54);
-            const targetApiUrl = `https://api.adsb.lol/v2/point/${home.lat}/${home.lon}/${rNM}`;
+            // Cache Buster (?cb=Timestamp) appended directly to the flight API url to completely bypass aggressive iOS caching
+            const targetApiUrl = `https://api.adsb.lol/v2/point/${home.lat}/${home.lon}/${rNM}?cb=${Date.now()}`;
             const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}`;
             
             try {
@@ -377,17 +380,23 @@
         }
 
         function updateStats() {
-            document.getElementById('stat-count').innerText = aircraft.length;
+            const countEl = document.getElementById('stat-count');
+            const altEl = document.getElementById('stat-alt');
+            const spdEl = document.getElementById('stat-spd');
+            
+            if (countEl) countEl.innerText = aircraft.length;
+            
             const avgAlt = aircraft.length ? Math.round(aircraft.reduce((s,a)=>s+(typeof a.alt === 'number' ? a.alt : 0),0)/aircraft.length) : 0;
             const avgSpd = aircraft.length ? Math.round(aircraft.reduce((s,a)=>s+a.spd,0)/aircraft.length) : 0;
-            document.getElementById('stat-alt').innerText = avgAlt.toLocaleString() + ' ft';
-            document.getElementById('stat-spd').innerText = avgSpd + ' kts';
+            
+            if (altEl) altEl.innerText = avgAlt.toLocaleString() + ' ft';
+            if (spdEl) spdEl.innerText = avgSpd + ' kts';
         }
 
         function updateList() {
             const list = document.getElementById('flight-list');
             list.innerHTML = aircraft.sort((a,b)=>a.dist-b.dist).map(a => `
-                <div onclick="selectByHex('${a.hex}')" class="p-3 border-b border-slate-800 hover:bg-slate-800 cursor-pointer transition-all flex items-center justify-between group">
+                <div onclick="selectByHex('${a.hex}')" class="p-3 border-b border-slate-800 hover:bg-slate-800 cursor-pointer transition-all flex items-center justify-between group" style="min-height: 52px;">
                     <div class="flex flex-col">
                         <span class="font-bold mono text-slate-200 group-hover:text-indigo-400 transition-colors">${a.call}</span>
                         <span class="text-[9px] text-slate-500 uppercase font-bold">${a.op}</span>
@@ -439,6 +448,7 @@
         function setStatus(t, c) { 
             const dot = document.getElementById('status-dot');
             const txt = document.getElementById('api-status-text');
+            if(!dot || !txt) return;
             
             const dotStyles = {
                 emerald: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]',
