@@ -151,13 +151,13 @@
             <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-400"><i data-lucide="activity"></i> Connection Diagnostics</h3>
             <div class="space-y-4">
                 <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-1">Browser Response</p>
-                    <p id="diag-error" class="text-xs text-rose-400 mono break-all">Checking state...</p>
+                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-1">Proxy Response State</p>
+                    <p id="diag-error" class="text-xs text-rose-400 mono break-all">Awaiting fetch profile...</p>
                 </div>
                 <div class="text-xs text-slate-400 space-y-2 leading-relaxed">
-                    <p><strong>Failed to fetch?</strong> This is common in Chromebook sandboxes. Even with a CORS extension, the "Iframe" may be blocked.</p>
-                    <p>1. Ensure your CORS extension is set to <strong>"Intercept all requests"</strong>.</p>
-                    <p>2. Try the <strong>Predictive Mode</strong> toggle if live data is unavailable.</p>
+                    <p><strong>GitHub Pages Proxy Bypass:</strong></p>
+                    <p>We are currently routing traffic through <strong>corsproxy.io</strong>, which allows safe backend-less requests directly from public GitHub Pages domains (`*.github.io`) and `localhost` domains.</p>
+                    <p>No browser extension is required when loading this page on GitHub Pages!</p>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="setTrackingMode('live')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-bold transition-all">Retry Live</button>
@@ -236,11 +236,14 @@
             if (trackingMode === 'sim') { generateSim(); return; }
 
             const rNM = Math.ceil(radius * 0.54);
-            const url = `https://api.adsb.lol/v2/point/${home.lat}/${home.lon}/${rNM}`;
+            const targetApiUrl = `https://api.adsb.lol/v2/point/${home.lat}/${home.lon}/${rNM}`;
+            
+            // Wrap original API in the secure, free-for-github.io corsproxy.io wrapper
+            const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}`;
             
             try {
-                const res = await fetch(url, { mode: 'cors', cache: 'no-cache' });
-                if (!res.ok) throw new Error("API Connection Rejected");
+                const res = await fetch(corsProxyUrl, { mode: 'cors', cache: 'no-cache' });
+                if (!res.ok) throw new Error("API Connection Rejected by Proxy Gateway");
                 const data = await res.json();
                 
                 if (!data.ac || data.ac.length === 0) {
@@ -281,8 +284,7 @@
         }
 
         function generateSim() {
-            // Keep existing aircraft and move them, or create new ones
-            const count = Math.floor(radius / 4);
+            const count = Math.max(5, Math.floor(radius / 4));
             const sim = [];
             for(let i=0; i<count; i++) {
                 const ang = (Date.now() / 10000 + i) % (Math.PI * 2);
@@ -362,7 +364,6 @@
             document.getElementById('d-spd').innerText = a.spd + ' kts';
             document.getElementById('d-type').innerText = a.type;
             
-            // Generate pseudo-random routes for visual flair
             const seed = a.hex.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
             document.getElementById('d-orig').innerText = APORTS[seed % APORTS.length];
             document.getElementById('d-dest').innerText = APORTS[(seed + 3) % APORTS.length];
