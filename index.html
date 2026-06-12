@@ -1,101 +1,619 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SkyTrack Radar</title>
+    <title>SkyTrack Radar - Live Flight Surveillance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
     <style>
-        #map { height: 100vh; width: 100%; z-index: 0; }
-        .map-overlay { z-index: 1000; }
-        /* Highlighting ring style */
-        .highlight-ring {
-            border: 2px solid #6366f1;
-            border-radius: 50%;
-            animation: rotate 2s linear infinite;
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .leaflet-container { background: #020617 !important; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 5px; }
+        
+        @keyframes radar-pulse {
+            0% { transform: scale(0.9); opacity: 0.4; }
+            50% { transform: scale(1.1); opacity: 0.1; }
+            100% { transform: scale(0.9); opacity: 0.4; }
         }
-        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .pulse-ring { animation: radar-pulse 4s infinite ease-in-out; }
+        .custom-plane-marker { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        /* Hardware-accelerated CSS filters to boost map tile readability */
+        #map.bright-dark .leaflet-tile {
+            filter: brightness(1.4) contrast(1.15) saturate(1.1) !important;
+        }
+        #map.ultra-dark .leaflet-tile {
+            filter: brightness(0.85) contrast(1.0) !important;
+        }
+        #map.sleek-light .leaflet-tile {
+            filter: none !important;
+        }
     </style>
 </head>
-<body class="bg-gray-950 text-white overflow-hidden font-sans">
+<body class="bg-slate-950 text-slate-100 h-full overflow-hidden flex flex-col">
 
-    <div id="map-container" class="relative w-full h-screen">
-        <div id="map"></div>
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between z-[4000] shadow-2xl">
+        <div class="flex items-center gap-3">
+            <!-- Mobile Toggle Button inside Header -->
+            <button onclick="toggleSidebar()" class="md:hidden bg-slate-800 hover:bg-slate-700 text-indigo-400 p-2 rounded-lg transition-all flex items-center justify-center">
+                <i data-lucide="menu" id="toggle-icon-header" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="bg-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-indigo-500/20 hidden sm:block">
+                <i data-lucide="plane-takeoff" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-black tracking-tighter uppercase">SkyTrack <span class="text-indigo-400">Radar</span></h1>
+                <p class="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Tactical Air Surveillance</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div id="status-badge" onclick="showDiagnostics()" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-[10px] cursor-help flex items-center gap-2 group transition-all hover:border-indigo-500">
+                <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
+                <span id="api-status-text" class="font-bold text-emerald-400">SYSTEM READY</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        <!-- Sidebar Navigation Controls -->
+        <aside id="sidebar" class="w-full md:w-80 bg-slate-900 border-r border-slate-800 flex flex-col z-[3500] absolute inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative transition-transform duration-300 ease-in-out">
+            <div class="p-4 space-y-4 border-b border-slate-800">
+                <!-- Mobile Close Row -->
+                <div class="flex items-center justify-between md:hidden pb-1 border-b border-slate-800/50">
+                    <span class="text-xs font-bold uppercase text-slate-400 tracking-wider">Radar Settings</span>
+                    <button onclick="toggleSidebar()" class="text-slate-500 hover:text-white p-1">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div>
+                    <label class="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Scan Center (Lat/Lon)</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" id="lat-in" step="0.0001" class="bg-slate-950 border border-slate-800 p-2 rounded text-xs mono text-indigo-400 focus:border-indigo-500 outline-none w-full" onchange="updateLocationFromInputs()">
+                        <input type="number" id="lon-in" step="0.0001" class="bg-slate-950 border border-slate-800 p-2 rounded text-xs mono text-indigo-400 focus:border-indigo-500 outline-none w-full" onchange="updateLocationFromInputs()">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Map Display Theme</label>
+                    <select id="map-style-select" onchange="handleMapStyleChange(this.value)" class="bg-slate-950 border border-slate-800 p-2 rounded text-xs text-indigo-400 focus:border-indigo-500 outline-none w-full font-semibold">
+                        <option value="bright-dark" selected>Tactical Dark (Brightened)</option>
+                        <option value="ultra-dark">Tactical Dark (Standard)</option>
+                        <option value="sleek-light">Sleek Light (High Contrast)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-[10px] font-bold uppercase text-slate-500 mb-1">
+                        <span>Scanning Range</span>
+                        <span id="range-val" class="text-indigo-400 font-mono">300 KM</span>
+                    </div>
+                    <input type="range" id="range-slider" min="10" max="300" value="300" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="handleRangeChange(this.value)">
+                </div>
+                <button onclick="getGPSLocation()" class="w-full bg-slate-800 hover:bg-slate-700 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all border border-slate-700/50 hover:border-indigo-500/30">
+                    <i data-lucide="navigation" class="w-3.5 h-3.5"></i> Update from GPS
+                </button>
+            </div>
+
+            <!-- List of identified flights -->
+            <div class="flex-1 overflow-y-auto" id="flight-list">
+                <div class="p-8 text-center text-slate-600 text-xs italic">Initiating scan vectors...</div>
+            </div>
+        </aside>
+
+        <main class="flex-1 relative bg-slate-950">
+            <!-- Default map initialized with bright-dark filter class -->
+            <div id="map" class="absolute inset-0 z-0 bright-dark"></div>
+            
+            <!-- Dashboard Stats Overlay -->
+            <div class="absolute top-4 left-4 right-4 pointer-events-none z-10 hidden lg:grid grid-cols-3 gap-4">
+                <div class="glass-panel p-3 rounded-xl flex justify-between items-center pointer-events-auto">
+                    <div>
+                        <p class="text-[9px] uppercase font-bold text-slate-500">Tracked Objects</p>
+                        <h4 id="stat-count" class="text-xl font-bold mono text-indigo-400">0</h4>
+                    </div>
+                    <i data-lucide="radar" class="text-indigo-500/50"></i>
+                </div>
+                <div class="glass-panel p-3 rounded-xl flex justify-between items-center pointer-events-auto">
+                    <div>
+                        <p class="text-[9px] uppercase font-bold text-slate-500">Mean Altitude</p>
+                        <h4 id="stat-alt" class="text-xl font-bold mono text-emerald-400">0 ft</h4>
+                    </div>
+                    <i data-lucide="trending-up" class="text-emerald-500/50"></i>
+                </div>
+                <div class="glass-panel p-3 rounded-xl flex justify-between items-center pointer-events-auto">
+                    <div>
+                        <p class="text-[9px] uppercase font-bold text-slate-500">Cruising Speed</p>
+                        <h4 id="stat-spd" class="text-xl font-bold mono text-amber-400">0 kts</h4>
+                    </div>
+                    <i data-lucide="gauge" class="text-amber-500/50"></i>
+                </div>
+            </div>
+
+            <!-- Inspect Plane Detail Drawer -->
+            <div id="drawer" class="absolute bottom-6 right-6 left-6 md:left-auto md:w-96 glass-panel rounded-2xl shadow-2xl p-5 z-[3000] transform translate-y-[120%] transition-all duration-500">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex gap-3">
+                        <div class="bg-indigo-600 p-3 rounded-xl shadow-lg"><i data-lucide="plane" class="text-white"></i></div>
+                        <div>
+                            <h2 id="d-callsign" class="text-xl font-black mono uppercase tracking-tighter">---</h2>
+                            <p id="d-operator" class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">---</p>
+                        </div>
+                    </div>
+                    <button onclick="closeDrawer()" class="text-slate-500 hover:text-white p-1"><i data-lucide="x"></i></button>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                        <span class="text-[8px] uppercase font-bold text-slate-500 block mb-1">Current Altitude</span>
+                        <span id="d-alt" class="text-sm font-bold mono text-emerald-400">---</span>
+                    </div>
+                    <div class="bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                        <span class="text-[8px] uppercase font-bold text-slate-500 block mb-1">Velocity (GS)</span>
+                        <span id="d-spd" class="text-sm font-bold mono text-amber-400">---</span>
+                    </div>
+                </div>
+                <div class="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-2">
+                    <div class="flex justify-between items-center">
+                        <div class="text-center"><h4 id="d-orig" class="text-lg font-bold mono text-slate-200">---</h4><p class="text-[8px] text-slate-500">ORIGIN</p></div>
+                        <div class="flex-1 flex flex-col items-center px-4">
+                            <div class="w-full border-t border-dashed border-slate-700 relative">
+                                <i data-lucide="plane" class="w-3 h-3 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-500 rotate-90"></i>
+                            </div>
+                        </div>
+                        <div class="text-center"><h4 id="d-dest" class="text-lg font-bold mono text-slate-200">---</h4><p class="text-[8px] text-slate-500">DEST</p></div>
+                    </div>
+                </div>
+                <div id="d-type" class="text-center text-[9px] font-mono text-slate-600 italic">-- Aircraft Data Unavailable --</div>
+            </div>
+        </main>
     </div>
 
-    <!-- UI Overlay Controls -->
-    <div class="map-overlay absolute top-4 left-4 flex flex-col gap-2">
-        <div class="bg-gray-800/90 p-4 rounded-xl shadow-lg border border-gray-700 w-64 backdrop-blur">
-            <h2 class="font-bold mb-2">Radar Settings</h2>
-            <select id="mapStyleSelect" onchange="changeMapStyle(this.value)" class="w-full bg-gray-900 p-2 rounded border border-gray-600 text-sm">
-                <option value="dark">Tactical Dark</option>
-                <option value="light">Sleek Light (High Contrast)</option>
-            </select>
+    <!-- Diagnostic Modal Overlay -->
+    <div id="diag-modal" class="fixed inset-0 z-[5000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-400"><i data-lucide="activity"></i> Connection Diagnostics</h3>
+            <div class="space-y-4">
+                <div class="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-1">Proxy Response State</p>
+                    <p id="diag-error" class="text-xs text-rose-400 mono break-all">Awaiting fetch profile...</p>
+                </div>
+                <div class="text-xs text-slate-400 space-y-2 leading-relaxed">
+                    <p><strong>GitHub Pages Proxy Bypass:</strong></p>
+                    <p>We are currently routing traffic through <strong>corsproxy.io</strong>, which allows safe backend-less requests directly from public GitHub Pages domains (`*.github.io`) and `localhost` domains.</p>
+                    <p>No browser extension is required when loading this page on GitHub Pages!</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="setTrackingMode('live')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 py-2 rounded-lg font-bold transition-all">Retry Live</button>
+                    <button onclick="hideDiagnostics()" class="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded-lg font-bold transition-all">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Detail Drawer (Simplified for brevity in this fix) -->
-    <div id="detail-drawer" class="hidden map-overlay absolute bottom-4 right-4 bg-gray-900 p-6 rounded-2xl w-80 border border-gray-700 shadow-2xl">
-        <button onclick="closeDrawer()" class="absolute top-2 right-2 text-gray-400">✕</button>
-        <h3 id="flight-id" class="text-xl font-bold mb-2">Select a Flight</h3>
-        <p id="flight-data" class="text-sm text-gray-300">Detailed telemetry will appear here.</p>
-    </div>
-
     <script>
-        let map = null;
-        let currentTheme = 'dark';
-        let tileLayer = null;
-        let selectedHex = null;
-        let highlightMarker = null;
+        const DEFAULT_LAT = 50.7940;
+        const DEFAULT_LON = -1.1244;
+        let home = { lat: DEFAULT_LAT, lon: DEFAULT_LON };
+        let radius = 300; // Defaulting coverage scale to 300km
+        let trackingMode = 'live'; // 'live' or 'sim'
+        let aircraft = [];
+        let markers = {};
+        let map, rangeCircle, tileLayer, audioCtx;
+        let connectionAttempts = 0;
+        let selectedHex = null; // Track selected plane ID for map/list highlighting
 
-        const mapConfigs = {
-            dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
-            light: { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' }
+        const AIRLINES = [
+            {c:"BAW",n:"British Airways"},
+            {c:"EZY",n:"EasyJet"},
+            {c:"EJU",n:"EasyJet Europe"},
+            {c:"EZS",n:"EasyJet Switzerland"},
+            {c:"RYR",n:"Ryanair"},
+            {c:"RRY",n:"Ryanair UK"},
+            {c:"TOM",n:"TUI Airways"},
+            {c:"TUI",n:"TUI fly"},
+            {c:"EXS",n:"Jet2.com"},
+            {c:"VLG",n:"Vueling"},
+            {c:"VIR",n:"Virgin Atlantic"},
+            {c:"UAL",n:"United Airlines"},
+            {c:"AAL",n:"American Airlines"},
+            {c:"DLH",n:"Lufthansa"},
+            {c:"AFR",n:"Air France"}
+        ];
+        const TYPES = [{c:"A320",n:"Airbus A320"},{c:"B738",n:"Boeing 737-800"},{c:"B77W",n:"Boeing 777"},{c:"F35",n:"Lockheed F-35"},{c:"A35K",n:"Airbus A350"}];
+        const APORTS = ["LHR","LGW","JFK","LAX","AMS","CDG","DXB","SIN","FRA","MAD"];
+
+        window.onload = () => {
+            lucide.createIcons();
+            initMap();
+            getGPSLocation();
+            setInterval(fetchData, 10000);
         };
 
         function initMap() {
-            map = L.map('map', { center: [50.798, -1.121], zoom: 8, zoomControl: false });
-            tileLayer = L.tileLayer(mapConfigs[currentTheme].url).addTo(map);
+            // Default setup zoomed to Level 8 to easily display the full 300KM canopy
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([home.lat, home.lon], 8);
             
-            // Mock flights for testing
-            renderFlights();
+            // Set up initial tile layer path without the broken {r} parameter
+            tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+            updateRangeRing();
+            
+            document.getElementById('lat-in').value = home.lat;
+            document.getElementById('lon-in').value = home.lon;
         }
 
-        function changeMapStyle(theme) {
-            currentTheme = theme;
+        // Handles switching between Dark, Enhanced-Brightness Dark, and High-Contrast Light maps
+        function handleMapStyleChange(style) {
+            const mapEl = document.getElementById('map');
+            mapEl.className = "absolute inset-0 z-0 " + style;
+
             if (tileLayer) map.removeLayer(tileLayer);
-            tileLayer = L.tileLayer(mapConfigs[theme].url).addTo(map);
-        }
 
-        function renderFlights() {
-            // Placeholder: Adding one flight for demonstration
-            const marker = L.marker([50.8, -1.1]).addTo(map);
-            marker.on('click', () => selectFlight('RYR123', marker));
-        }
+            // Re-routing to clean OpenStreetMap standard tiles for 100% reliable light rendering
+            let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+            if (style === 'sleek-light') {
+                tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+                mapEl.style.background = '#f1f5f9';
+            } else {
+                mapEl.style.background = '#020617';
+            }
 
-        function selectFlight(hex, marker) {
-            selectedHex = hex;
-            document.getElementById('flight-id').innerText = hex;
-            document.getElementById('detail-drawer').classList.remove('hidden');
-
-            // Add highlight ring
-            if (highlightMarker) map.removeLayer(highlightMarker);
-            highlightMarker = L.circleMarker(marker.getLatLng(), {
-                radius: 20,
-                color: '#6366f1',
-                fill: false,
-                className: 'highlight-ring'
+            tileLayer = L.tileLayer(tileUrl, {
+                subdomains: 'abcd',
+                maxZoom: 20
             }).addTo(map);
         }
 
-        function closeDrawer() {
-            document.getElementById('detail-drawer').classList.add('hidden');
-            // We DO NOT set selectedHex = null so the ring persists
+        function updateRangeRing() {
+            if (rangeCircle) map.removeLayer(rangeCircle);
+            rangeCircle = L.circle([home.lat, home.lon], {
+                radius: radius * 1000, color: '#6366f1', weight: 1, fillOpacity: 0.05, dashArray: '5, 10'
+            }).addTo(map);
         }
 
-        window.onload = initMap;
+        function getGPSLocation() {
+            setStatus('LOCATING...', 'indigo');
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    home.lat = pos.coords.latitude;
+                    home.lon = pos.coords.longitude;
+                    document.getElementById('lat-in').value = home.lat.toFixed(4);
+                    document.getElementById('lon-in').value = home.lon.toFixed(4);
+                    updateLocationFromInputs();
+                    setStatus('GPS ACTIVE', 'emerald');
+                }, (err) => {
+                    console.warn("GPS lookup failed", err);
+                    setStatus('GPS FAILED', 'amber');
+                    updateLocationFromInputs();
+                }, { enableHighAccuracy: true, timeout: 5000 });
+            } else {
+                setStatus('UNSUPPORTED', 'amber');
+                updateLocationFromInputs();
+            }
+        }
+
+        function updateLocationFromInputs() {
+            const rawLat = parseFloat(document.getElementById('lat-in').value);
+            const rawLon = parseFloat(document.getElementById('lon-in').value);
+            if (!isNaN(rawLat) && !isNaN(rawLon)) {
+                home.lat = rawLat;
+                home.lon = rawLon;
+                map.panTo([home.lat, home.lon]);
+                updateRangeRing();
+                fetchData();
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('toggle-icon-header');
+            const isHidden = sidebar.classList.contains('-translate-x-full');
+            
+            if (isHidden) {
+                sidebar.classList.remove('-translate-x-full');
+                icon.setAttribute('data-lucide', 'x');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                icon.setAttribute('data-lucide', 'menu');
+            }
+            lucide.createIcons();
+        }
+
+        function setTrackingMode(m) {
+            trackingMode = m;
+            connectionAttempts = 0;
+            fetchData();
+            hideDiagnostics();
+        }
+
+        async function fetchData() {
+            if (trackingMode === 'sim') { generateSim(); return; }
+
+            const rNM = Math.ceil(radius * 0.54);
+            
+            // Micro-coordinate sub-centimeter jitter bypasses local proxy cache loops safely:
+            const jitterLat = (home.lat + (Math.random() - 0.5) * 0.00001).toFixed(6);
+            const jitterLon = (home.lon + (Math.random() - 0.5) * 0.00001).toFixed(6);
+
+            const targetApiUrl = `https://api.adsb.lol/v2/point/${jitterLat}/${jitterLon}/${rNM}`;
+            const corsProxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetApiUrl)}&cb=${Date.now()}`;
+            
+            try {
+                const res = await fetch(corsProxyUrl, { mode: 'cors', cache: 'no-cache' });
+                if (!res.ok) throw new Error("API Connection Rejected by Proxy Gateway");
+                const data = await res.json();
+                
+                if (!data.ac || data.ac.length === 0) {
+                    setStatus('NO TRAFFIC', 'amber');
+                    generateSim(); 
+                } else {
+                    processData(data.ac);
+                    setStatus('LIVE FEED', 'emerald');
+                }
+                connectionAttempts = 0;
+            } catch (e) {
+                connectionAttempts++;
+                document.getElementById('diag-error').innerText = e.message + " (Attempt " + connectionAttempts + ")";
+                
+                if (connectionAttempts >= 2) {
+                    setStatus('PREDICTIVE MODE', 'amber');
+                    generateSim();
+                } else {
+                    setStatus('CONNECTING...', 'indigo');
+                }
+            }
+        }
+
+        function processData(raw) {
+            aircraft = raw.map(a => {
+                const rawCall = (a.flight || a.hex).trim();
+                return {
+                    hex: a.hex, 
+                    call: rawCall,
+                    alt: a.alt_baro === 'ground' ? 0 : (a.alt_baro || a.alt_geom || 0), 
+                    spd: Math.round(a.gs || 0),
+                    trk: a.track || 0, 
+                    lat: a.lat, 
+                    lon: a.lon,
+                    op: AIRLINES.find(l => rawCall.startsWith(l.c))?.n || "Private/Unlisted",
+                    type: TYPES.find(t => t.c === a.t)?.n || "General Aviation",
+                    dist: getDist(home.lat, home.lon, a.lat, a.lon)
+                };
+            });
+            render();
+        }
+
+        // Uses the Golden Angle (Fermat's Spiral) to distribute simulated planes organically around your location
+        function generateSim() {
+            const count = Math.max(5, Math.floor(radius / 4));
+            const sim = [];
+            for(let i=0; i<count; i++) {
+                const seedAngle = (i * 137.5) * Math.PI / 180;
+                const speed = 250 + (i % 5) * 50; 
+                const track = (i * 45) % 360; 
+                
+                const timeSecs = Date.now() / 1000;
+                const distanceMoved = (speed * 0.5144 * timeSecs) / 1000; 
+                const startDist = ((i * 17) % 100) / 100 * radius; 
+                const currentDist = (startDist + distanceMoved) % radius;
+                
+                const lat = home.lat + (currentDist * Math.cos(seedAngle) / 111);
+                const lon = home.lon + (currentDist * Math.sin(seedAngle) / 111);
+
+                sim.push({
+                    hex: "SIM"+i, 
+                    call: AIRLINES[i%AIRLINES.length].c + (100+i),
+                    alt: 5000 + ((i * 3000) % 35000), 
+                    spd: speed,
+                    trk: track, 
+                    lat: lat,
+                    lon: lon,
+                    op: AIRLINES[i%AIRLINES.length].n, 
+                    type: TYPES[i%TYPES.length].n, 
+                    dist: currentDist
+                });
+            }
+            aircraft = sim;
+            render();
+        }
+
+        function render() {
+            const currentHex = new Set(aircraft.map(a => a.hex));
+            Object.keys(markers).forEach(h => { 
+                if(!currentHex.has(h)) { map.removeLayer(markers[h]); delete markers[h]; }
+            });
+
+            aircraft.forEach(a => {
+                const color = a.alt > 30000 ? '#3b82f6' : a.alt > 15000 ? '#10b981' : '#f59e0b';
+                const isSelected = a.hex === selectedHex;
+
+                // Generates HTML with nested glowing rings if this specific flight is selected
+                const highlightMarkup = isSelected ? `
+                    <div class="absolute w-12 h-12 rounded-full border-2 border-dashed border-indigo-400 animate-[spin_10s_linear_infinite]" style="top: -10px; left: -10px; pointer-events: none;"></div>
+                    <div class="absolute w-10 h-10 rounded-full bg-indigo-500/20 animate-pulse" style="top: -6px; left: -6px; pointer-events: none;"></div>
+                ` : '';
+
+                const icon = L.divIcon({
+                    html: `
+                        <div class="custom-plane-marker flex items-center justify-center relative" style="transform: rotate(${a.trk}deg); color: ${color}; filter: drop-shadow(0 0 4px rgba(0,0,0,0.9)); width: 28px; height: 28px;">
+                            ${highlightMarkup}
+                            <i data-lucide="plane" class="w-6 h-6 relative z-10"></i>
+                        </div>
+                    `,
+                    className: '', iconSize: [28,28], iconAnchor: [14, 14]
+                });
+
+                if (markers[a.hex]) {
+                    markers[a.hex].setLatLng([a.lat, a.lon]);
+                    markers[a.hex].setIcon(icon);
+                    
+                    // Keep selected plane z-index high so its highlighted rings render above other planes
+                    if (isSelected) {
+                        markers[a.hex].setZIndexOffset(1000);
+                    } else {
+                        markers[a.hex].setZIndexOffset(0);
+                    }
+                } else {
+                    const marker = L.marker([a.lat, a.lon], {icon}).addTo(map);
+                    marker.on('click', () => select(a));
+                    markers[a.hex] = marker;
+                }
+            });
+            
+            updateStats();
+            updateList();
+            lucide.createIcons();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-count').innerText = aircraft.length;
+            const avgAlt = aircraft.length ? Math.round(aircraft.reduce((s,a)=>s+(typeof a.alt === 'number' ? a.alt : 0),0)/aircraft.length) : 0;
+            const avgSpd = aircraft.length ? Math.round(aircraft.reduce((s,a)=>s+a.spd,0)/aircraft.length) : 0;
+            document.getElementById('stat-alt').innerText = avgAlt.toLocaleString() + ' ft';
+            document.getElementById('stat-spd').innerText = avgSpd + ' kts';
+        }
+
+        function updateList() {
+            const list = document.getElementById('flight-list');
+            list.innerHTML = aircraft.sort((a,b)=>a.dist-b.dist).map(a => {
+                const isSelected = a.hex === selectedHex;
+                const activeCardStyle = isSelected 
+                    ? 'bg-indigo-950/40 border-l-4 border-indigo-500 shadow-md' 
+                    : 'border-b border-slate-800 hover:bg-slate-800';
+
+                return `
+                    <div onclick="selectByHex('${a.hex}')" class="p-3 cursor-pointer transition-all flex items-center justify-between group ${activeCardStyle}">
+                        <div class="flex flex-col">
+                            <span class="font-bold mono ${isSelected ? 'text-indigo-400' : 'text-slate-200 group-hover:text-indigo-400'} transition-colors">${a.call}</span>
+                            <span class="text-[9px] text-slate-500 uppercase font-bold">${a.op}</span>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] text-indigo-400 mono font-bold">${a.dist.toFixed(1)}km</div>
+                            <div class="text-[9px] text-slate-500">${a.alt.toLocaleString()}ft</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function select(a) {
+            selectedHex = a.hex;
+
+            document.getElementById('d-callsign').innerText = a.call;
+            document.getElementById('d-operator').innerText = a.op;
+            document.getElementById('d-alt').innerText = a.alt.toLocaleString() + ' ft';
+            document.getElementById('d-spd').innerText = a.spd + ' kts';
+            document.getElementById('d-type').innerText = a.type;
+            
+            const seed = a.hex.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            document.getElementById('d-orig').innerText = APORTS[seed % APORTS.length];
+            document.getElementById('d-dest').innerText = APORTS[(seed + 3) % APORTS.length];
+            
+            document.getElementById('drawer').style.transform = 'translateY(0)';
+
+            // Offset centering logic to ensure targeted flight is never obscured by UI card overlays
+            let offsetX = 0;
+            let offsetY = 0;
+            if (window.innerWidth < 768) {
+                offsetY = 120; // Pushes plane up, clearing bottom card slide on iPhones
+            } else {
+                offsetX = 100; // Shifts plane left, clearing right telemetry panel on Chromebooks
+            }
+            
+            const targetPoint = map.project([a.lat, a.lon]);
+            targetPoint.x += offsetX;
+            targetPoint.y += offsetY;
+            const targetLatLng = map.unproject(targetPoint);
+            map.panTo(targetLatLng);
+
+            playBeep(440 + (a.alt/100));
+
+            // Force map markers and list elements to redraw matching highlights immediately
+            render();
+
+            if (window.innerWidth < 768) {
+                const sidebar = document.getElementById('sidebar');
+                if (!sidebar.classList.contains('-translate-x-full')) {
+                    toggleSidebar();
+                }
+            }
+        }
+
+        function selectByHex(h) { const a = aircraft.find(x=>x.hex===h); if(a) select(a); }
+        
+        function closeDrawer() { 
+            // Slides the telemetry card down but leaves selectedHex active so the map highlight remains visible!
+            document.getElementById('drawer').style.transform = 'translateY(120%)'; 
+        }
+        
+        function showDiagnostics() { document.getElementById('diag-modal').classList.remove('hidden'); }
+        function hideDiagnostics() { document.getElementById('diag-modal').classList.add('hidden'); }
+        
+        function handleRangeChange(v) { 
+            radius = parseInt(v); 
+            document.getElementById('range-val').innerText = v+' KM'; 
+            updateRangeRing(); 
+            fetchData(); 
+        }
+        
+        function setStatus(t, c) { 
+            const dot = document.getElementById('status-dot');
+            const txt = document.getElementById('api-status-text');
+            
+            const dotStyles = {
+                emerald: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]',
+                amber: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]',
+                indigo: 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]'
+            };
+            
+            const textStyles = {
+                emerald: 'font-bold text-emerald-400',
+                amber: 'font-bold text-amber-400',
+                indigo: 'font-bold text-indigo-400'
+            };
+
+            dot.className = `w-2 h-2 rounded-full transition-all duration-300 ${dotStyles[c] || dotStyles.emerald}`;
+            txt.innerText = t;
+            txt.className = `font-bold transition-all duration-300 ${textStyles[c] || textStyles.emerald}`;
+        }
+
+        function playBeep(f) {
+            try {
+                if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.frequency.value = f;
+                g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+                o.connect(g); g.connect(audioCtx.destination);
+                o.start(); o.stop(audioCtx.currentTime + 0.3);
+            } catch(e) {}
+        }
+
+        function getDist(la1, lo1, la2, lo2) {
+            const R = 6371;
+            const dLat = (la2-la1)*Math.PI/180;
+            const dLon = (lo2-lo1)*Math.PI/180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
     </script>
 </body>
 </html>
