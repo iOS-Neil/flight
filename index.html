@@ -40,7 +40,7 @@
             filter: brightness(0.85) contrast(1.0) !important;
         }
         #map.sleek-light .leaflet-tile {
-            filter: saturate(0.9) contrast(1.05) !important;
+            filter: saturate(1.1) contrast(1.05) brightness(0.98) !important;
         }
     </style>
 </head>
@@ -210,7 +210,7 @@
         const DEFAULT_LAT = 50.7940;
         const DEFAULT_LON = -1.1244;
         let home = { lat: DEFAULT_LAT, lon: DEFAULT_LON };
-        let radius = 300;
+        let radius = 300; // Updated to default coverage scale
         let trackingMode = 'live'; // 'live' or 'sim'
         let aircraft = [];
         let markers = {};
@@ -264,10 +264,11 @@
 
             if (tileLayer) map.removeLayer(tileLayer);
 
+            // Using high-contrast CartoDB Voyager tiles for clear landmarks and geographical structures
             let tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
             if (style === 'sleek-light') {
-                tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-                mapEl.style.background = '#f1f5f9';
+                tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+                mapEl.style.background = '#f8fafc';
             } else {
                 mapEl.style.background = '#020617';
             }
@@ -553,9 +554,8 @@
         function selectByHex(h) { const a = aircraft.find(x=>x.hex===h); if(a) select(a); }
         
         function closeDrawer() { 
+            // Slides the telemetry card down but leaves selectedHex active so the map highlight remains visible!
             document.getElementById('drawer').style.transform = 'translateY(120%)'; 
-            selectedHex = null; // Cleanly disable active flight highlights
-            render();
         }
         
         function showDiagnostics() { document.getElementById('diag-modal').classList.remove('hidden'); }
